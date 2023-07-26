@@ -1,0 +1,178 @@
+---
+title: "Skripsi RegLog Fuad"
+author: "Afiful Fuad"
+date: "5/30/2023"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Library yang digunakan
+```{r library}
+library(readxl)
+library(base)
+library(stats)
+library(lmtest)
+library(survey)
+library(ResourceSelection)
+library(caret)
+```
+
+•	library(readxl) => read_excel() untuk mengimpor data dari excel bertipe xls dan xlsx
+
+•	library(base) => 
+  a) as.factor() untuk mengubah skala data menjadi faktor,
+  b) table() untuk membuat tabel,
+  c) summary() digunakan untuk menampilkan ringkasan. 
+
+•	library(stats) => 
+  a) chisq.test() untuk pengujian independensi,
+  b) glm(...,family="binomial") untuk estimasi parameter regresi logistik biner,
+  c) step() digunakan untuk seleksi variabel.
+  d) na.omit() digunakan untuk menghapus missing value.
+
+•	library(lmtest) => lrtest() untuk pengujian signifikansi parameter secara serentak
+
+•	library(survey) => regTermTest() untuk pengujian signifikansi parameter secara parsial
+
+•	library(ResourceSelection) => hoslem.test() untuk uji kesesuaian model
+
+•	library(caret) => confusionMatrix() untuk ketepatan klasifikasi
+
+
+# Import Data
+```{r data}
+data1 <- read_excel("data skripsi fuad.xlsx", sheet = "fix")
+data1 <- na.omit(data1)
+data1$Status<- as.factor(data1$Status)
+data1$JK<- as.factor(data1$JK)
+data1$Kelompok <- as.factor(data1$Kelompok)
+data1$Asal<- as.factor(data1$Asal)
+data1$Kelas<- as.factor(data1$Kelas)
+data1$IPK <- as.factor(data1$IPK)
+head(data1)
+```
+
+
+# Tabulasi Silang
+
+```{r crosstab}
+#tabel observasi
+obsjk <- table(data1$Status,data1$JK)
+obskelompok <- table(data1$Status,data1$Kelompok)
+obsasal <- table(data1$Status,data1$Asal)
+obskelas <- table(data1$Status,data1$Kelas)
+obsipk <- table(data1$Status,data1$IPK)
+obsusia <- table(data1$Status,data1$Usia)
+#tabel ekspektasi
+obsjk
+chisq.test(obsjk)$expected
+obskelompok
+chisq.test(obskelompok)$expected
+obsasal
+chisq.test(obsasal)$expected
+obskelas
+chisq.test(obskelas)$expected
+obsipk
+chisq.test(obsipk)$expected
+```
+
+
+# Uji Independensi
+
+```{r rl, include=FALSE}
+data <- read_excel("data skripsi fuad.xlsx", sheet = "no")
+```
+
+```{r independensi}
+chisq.test(obsjk)
+chisq.test(obskelompok)
+chisq.test(obsasal)
+chisq.test(obskelas)
+chisq.test(obsipk)
+cor.test(data$Usia,data$Status,method = "spearman")
+```
+
+
+# Regresi Logistik Biner
+
+```{r reglog}
+data <- read_excel("data skripsi fuad.xlsx", sheet = "no")
+data <- na.omit(data)
+model <- glm(Status~IPK+Kelas+JK+Usia,
+             data = data, family = "binomial")
+summary(model)
+```
+
+
+# Pengujian Signifikansi Parameter
+
+## Uji Serentak
+
+```{r LRT}
+lrtest(model)
+```
+
+
+## Uji Parsial
+
+```{r Wald}
+regTermTest(model,"IPK")
+regTermTest(model,"Kelas")
+regTermTest(model,"JK")
+regTermTest(model,"Usia")
+```
+
+
+# Pemilihan Model Terbaik (Backward Elimination)
+
+``` {r backward manual}
+model1 <- glm(Status~IPK+Kelas+Usia,
+             data = data, family = "binomial")
+regTermTest(model1,"IPK")
+regTermTest(model1,"Kelas")
+regTermTest(model1,"Usia")
+
+model2 <- glm(Status~IPK+Kelas,
+             data = data, family = "binomial")
+regTermTest(model2,"IPK")
+regTermTest(model2,"Kelas")
+```
+
+``` {r Backward Elimination otomatis}
+model_fit <- step(object = model, direction = "backward")
+summary(model_fit)
+```
+
+# Uji Kesesuaian Model
+
+```{r Hosmer and Lemeshow}
+hoslem.test(model_fit$y, fitted(model_fit))
+```
+
+
+# Odds Ratio
+
+```{r Odds Ratio}
+koef=coef(model_fit)
+odds_ratio=exp(koef)
+odds_ratio
+```
+
+
+# Ketepatan Klasifikasi
+
+```{r akurasi}
+predict_rl <-predict(model_fit, newdata=data, type="response")
+fit_rl <- ifelse(predict_rl>0.5,1,0)
+tab_rl <- table(data$Status,fit_rl)
+confusionMatrix(tab_rl, positive="1")
+```
+
+
+
+
+
+
